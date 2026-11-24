@@ -1,0 +1,28 @@
+[package]
+name = "wim-info-wasm"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+description = "Read WIM header and image XML metadata without loading image resources"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+roxmltree = "0.21.2"
+time = { version = "0.3", features = ["formatting"] }
+serde = { version = "1", features = ["derive"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Blob", "File"] }
+serde-wasm-bindgen = "0.6"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"

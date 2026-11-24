@@ -1,0 +1,19 @@
+{
+  "name": "wim-parser-wasm",
+  "version": "0.2.0",
+  "type": "module",
+  "main": "./pkg/wim_info_wasm.js",
+  "types": "./pkg/wim_info_wasm.d.ts",
+  "exports": {
+    ".": {
+      "types": "./pkg/wim_info_wasm.d.ts",
+      "import": "./pkg/wim_info_wasm.js"
+    },
+    "./types": "./web/types.ts"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test:wasm": "node tests/wasm.mjs",
+    "test:browser": "node tests/browser.cjs"
+  }
+}
