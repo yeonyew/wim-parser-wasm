@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { File } from 'node:buffer';
-import init, { parseWim } from '../pkg/wim_info_wasm.js';
+import init, { parseWim } from '../pkg/wim_parser_wasm.js';
 
-await init({ module_or_path: await readFile(new URL('../pkg/wim_info_wasm_bg.wasm', import.meta.url)) });
+await init({ module_or_path: await readFile(new URL('../pkg/wim_parser_wasm_bg.wasm', import.meta.url)) });
 
 function fixture(xml, offset = 208) {
   const payload = Buffer.from(xml, 'utf16le');

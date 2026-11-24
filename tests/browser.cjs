@@ -49,7 +49,7 @@ function fixture(xml, offset = 208) {
     assert.equal(result.images[0].displayName, null);
     // Instrument File reads to verify the Wasm API reads only header and XML.
     const reads = await page.evaluate(async ({ raw, xmlBytes }) => {
-      const { default: init, parseWim } = await import('/pkg/wim_info_wasm.js');
+      const { default: init, parseWim } = await import('/pkg/wim_parser_wasm.js');
       await init();
       const calls = [];
       class TrackedFile extends File {

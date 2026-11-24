@@ -36,7 +36,7 @@ import type { WimInfo } from '@zeroup/wim-info-wasm/types';
 ```
 
 위 패키지 import는 Vite 등 번들러에서 사용합니다. `web/` 데모는
-생성된 `pkg/wim_info_wasm.js`를 상대 경로로 불러옵니다.
+생성된 `pkg/wim_parser_wasm.js`를 상대 경로로 불러옵니다.
 
 ## 반환 항목
 

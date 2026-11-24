@@ -1,4 +1,4 @@
-import init, { parseWim } from "../pkg/wim_info_wasm.js";
+import init, { parseWim } from "../pkg/wim_parser_wasm.js";
 
 // Initialize exactly once, including when several requests arrive together.
 const ready = init();

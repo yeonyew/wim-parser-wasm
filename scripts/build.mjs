@@ -43,5 +43,5 @@ run('wasm-bindgen', [
   'web',
   '--out-dir',
   'pkg',
-  'target/wasm32-unknown-unknown/release/wim_info_wasm.wasm',
+  'target/wasm32-unknown-unknown/release/wim_parser_wasm.wasm',
 ]);

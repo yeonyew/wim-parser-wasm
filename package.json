@@ -1,13 +1,19 @@
 {
   "name": "wim-parser-wasm",
   "version": "0.2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yeonyew/wim-parser-wasm.git"
+  },
+  "author": "yeonyew",
+  "license": "MIT",
   "type": "module",
-  "main": "./pkg/wim_info_wasm.js",
-  "types": "./pkg/wim_info_wasm.d.ts",
+  "main": "./pkg/wim_parser_wasm.js",
+  "types": "./pkg/wim_parser_wasm.d.ts",
   "exports": {
     ".": {
-      "types": "./pkg/wim_info_wasm.d.ts",
-      "import": "./pkg/wim_info_wasm.js"
+      "types": "./pkg/wim_parser_wasm.d.ts",
+      "import": "./pkg/wim_parser_wasm.js"
     },
     "./types": "./web/types.ts"
   },

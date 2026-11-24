@@ -1,4 +1,4 @@
-use wim_info_wasm::{parse_header, parse_xml, HEADER_SIZE, MAX_XML_BYTES};
+use wim_parser_wasm::{parse_header, parse_xml, HEADER_SIZE, MAX_XML_BYTES};
 
 fn fixture(xml: &str) -> (Vec<u8>, Vec<u8>) {
     let xml: Vec<u8> = xml.encode_utf16().flat_map(u16::to_le_bytes).collect();
@@ -15,7 +15,7 @@ fn fixture(xml: &str) -> (Vec<u8>, Vec<u8>) {
     (header, xml)
 }
 
-fn parse(xml: &str) -> wim_info_wasm::WimInfo {
+fn parse(xml: &str) -> wim_parser_wasm::WimInfo {
     let (h, x) = fixture(xml);
     parse_xml(&parse_header(&h, (h.len() + x.len()) as u64).unwrap(), &x).unwrap()
 }

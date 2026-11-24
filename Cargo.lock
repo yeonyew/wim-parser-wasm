@@ -288,7 +288,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "wim-info-wasm"
+name = "wim-parser-wasm"
 version = "0.2.0"
 dependencies = [
  "js-sys",
