@@ -1,189 +1,225 @@
-# WIM 상세 정보 파서 — Rust / Wasm
+# wim-parser-wasm
 
-브라우저의 File을 Worker로 전달하면 Rust가 헤더 208바이트와 XML 구간만 읽습니다.
-DISM `/Get-ImageInfo /ImageFile:... /Index:...`에 대응하는 이미지 메타데이터와
-WIM 컨테이너 정보를 반환합니다. `web/index.html`에서는 전체 항목을 표로 표시합니다.
+[![CI](https://github.com/yeonyew/wim-parser-wasm/actions/workflows/ci-build.yml/badge.svg)](https://github.com/yeonyew/wim-parser-wasm/actions/workflows/ci-build.yml)
 
-## 바로 실행
+Rust와 WebAssembly로 구현한 WIM/ESD 메타데이터 파서입니다. 브라우저의
+`File` 객체를 받아 WIM 헤더와 XML 메타데이터만 읽고, 이미지 목록과 컨테이너
+정보를 JavaScript 객체로 반환합니다.
 
-빌드 결과물인 `pkg/`를 소스와 함께 Git에 포함합니다.
-저장소 루트에서 `pnpm install`을 실행하면 별도 Rust 빌드 없이 사용할 수 있습니다.
-Rust 소스를 변경한 경우 아래 **소스 빌드** 절차로 `pkg/`를 갱신하세요.
+파일 전체를 업로드하거나 이미지 리소스를 압축 해제하지 않습니다.
 
-빌드 후 이 패키지 디렉터리에서 다음을 실행하세요.
+## 주요 기능
+
+- 브라우저 `File` API와 Web Worker에서 실행 가능
+- WIM 헤더 208바이트와 XML 리소스 구간만 읽음
+- 여러 이미지의 DISM `/Get-ImageInfo` 수준 메타데이터 반환
+- 64비트 크기·오프셋을 문자열로 보존해 JavaScript 정밀도 손실 방지
+- XML 엔티티, CDATA, UTF-16LE, FILETIME, 언어 목록 지원
+- Rust 단위 테스트, Node.js Wasm 테스트, Playwright 브라우저 테스트 제공
+
+## 설치
 
 ```sh
-python3 -m http.server 8000
+npm install wim-parser-wasm
 ```
 
-http://localhost:8000/web/ 에 접속해 WIM 파일을 선택합니다.
-선택한 파일은 네트워크로 업로드하지 않습니다.
-
-직접 호출하는 경우:
+## 사용법
 
 ```js
-import init, { parseWim } from '@zeroup/wim-info-wasm';
+import init, { parseWim } from "wim-parser-wasm";
+
+const input = document.querySelector("input[type=file]");
+const file = input.files[0];
 
 await init();
-const result = await parseWim(file);
+const info = await parseWim(file);
+
+console.log(info.imageCount);
+console.log(info.images[0].osName);
+console.log(info.images[0].buildVersion);
 ```
 
-`@zeroup/core`는 `workspace:*` 의존성으로 이 패키지를 사용합니다.
-반환값 타입은 `@zeroup/wim-info-wasm/types`에서 가져올 수 있습니다.
+TypeScript 타입은 별도 export로 제공합니다.
 
 ```ts
-import type { WimInfo } from '@zeroup/wim-info-wasm/types';
+import type { WimInfo } from "wim-parser-wasm/types";
 ```
 
-위 패키지 import는 Vite 등 번들러에서 사용합니다. `web/` 데모는
-생성된 `pkg/wim_parser_wasm.js`를 상대 경로로 불러옵니다.
+## 로컬 데모
 
-## 반환 항목
-
-XML 경로는 별도 표기가 없으면 `WIM/IMAGE` 기준입니다.
-
-| 결과 필드 | 의미 / 원본 위치 |
-|---|---|
-| imageCount | 헤더 이미지 수. XML 이미지 개수와 일치 여부 검사 |
-| totalBytes | WIM/TOTALBYTES 원문 |
-| images[].index | IMAGE/@INDEX, 숫자 |
-| osName | NAME |
-| displayName | DISPLAYNAME |
-| description | DESCRIPTION |
-| displayDescription | DISPLAYDESCRIPTION |
-| imageSize | TOTALBYTES. 선택한 WIM 파일 자체의 크기와 구분 |
-| hardLinkBytes | HARDLINKBYTES |
-| architecture | WINDOWS/ARCH. `"9"` 같은 원문 코드를 보존 |
-| edition | WINDOWS/EDITIONID |
-| productName | WINDOWS/PRODUCTNAME |
-| installationType | WINDOWS/INSTALLATIONTYPE |
-| hal | WINDOWS/HAL |
-| productType | WINDOWS/PRODUCTTYPE |
-| productSuite | WINDOWS/PRODUCTSUITE |
-| majorVersion | WINDOWS/VERSION/MAJOR |
-| minorVersion | WINDOWS/VERSION/MINOR |
-| build | WINDOWS/VERSION/BUILD |
-| spBuild | WINDOWS/VERSION/SPBUILD |
-| spLevel | WINDOWS/VERSION/SPLEVEL |
-| version | MAJOR.MINOR.BUILD 조합, 예: `10.0.26100` |
-| buildVersion | BUILD.SPBUILD 조합, 예: `26100.1111` |
-| bootable | 헤더 BootIndex가 이 이미지 인덱스를 가리키는지 여부 |
-| wimBoot | WIMBOOT 원문. bootable과 별개인 레거시 WIMBoot 속성 |
-| flags | FLAGS 원문 |
-| systemRoot | WINDOWS/SYSTEMROOT |
-| languages.values | WINDOWS/LANGUAGES/LANGUAGE 목록 |
-| languages.count | 언어 목록 길이 |
-| languages.default | WINDOWS/LANGUAGES/DEFAULT |
-| languages.defaultIndex | 기본 언어가 목록에 있는 경우 0부터 시작하는 인덱스 |
-| languages.fallbacks | FALLBACK의 LANGUAGE 속성과 텍스트 |
-| fileCount | FILECOUNT |
-| directoryCount | DIRCOUNT |
-| createdTime | CREATIONTIME의 highPart / lowPart 원문과 utc 파생값 |
-| modifiedTime | LASTMODIFICATIONTIME의 highPart / lowPart 원문과 utc 파생값 |
-
-`DismImageInfo.CustomizedInfo`에 해당하는 파일 수·디렉터리 수·시각은
-이미지 객체 안에 함께 제공합니다. 구조체의 메모리 크기나 포인터 값은 이미지 정보가
-아니므로 반환하지 않습니다. `languages.count/defaultIndex`가 API의
-LanguageCount/DefaultLanguageIndex에 대응합니다.
-
-| container 필드 | 의미 |
-|---|---|
-| imageType | WIM 컨테이너임을 나타내는 `WIM` |
-| fileSize | 선택한 파일 자체의 크기, bytes |
-| headerSize | 헤더 크기 |
-| formatVersion | WIM 포맷 버전 정수 |
-| flags | 원래 헤더 플래그 비트 |
-| compressionChunkSize | 헤더의 압축 청크 크기 |
-| guid | WIM GUID |
-| partNumber / totalParts | 분할 번호 / 전체 분할 수 |
-| bootIndex | 부팅 지정 인덱스. 0이면 미지정 |
-| lookupTable | 리소스 테이블의 위치·크기·원본 크기·플래그 |
-| xml | XML 리소스의 위치·크기·원본 크기·플래그 |
-| bootMetadata | 부팅 메타데이터 리소스 위치·크기·원본 크기·플래그 |
-| integrity | 무결성 테이블 리소스 위치·크기·원본 크기·플래그 |
-| hasIntegrityTable | 무결성 테이블이 있는지 여부. 검사를 수행한 결과는 아님 |
-
-리소스 객체의 공통 필드는 `offset`, `size`, `originalSize`, `flags`입니다.
-표시되는 리소스 중 실제 읽는 것은 헤더와 XML뿐입니다.
-
-## 원문 보존과 파생값
-
-- XML 값은 XML 규칙으로 디코딩한 텍스트입니다. 엔티티/CDATA와 XML 표준 줄바꿈
-  정규화는 적용되지만, 공백·대소문자·선행 0을 임의로 변경하지 않습니다.
-- 필드가 없으면 null, 존재하지만 비어 있으면 빈 문자열입니다.
-- NAME과 DISPLAYNAME은 독립적으로 반환하며, 서로 대체하거나 OS 이름을 추정하지 않습니다.
-- XML 숫자도 문자열로 보존합니다. 64비트 크기와 오프셋 역시 문자열로 반환하므로
-  JavaScript Number의 정밀도 제한에 영향을 받지 않습니다.
-- 이미지 인덱스·이미지 수·헤더의 32비트 필드는 숫자입니다.
-- version/buildVersion은 필요한 원문 필드가 모두 비어 있지 않은 ASCII 숫자일 때만
-  조합합니다. 원본 개별 필드는 항상 보존합니다.
-- FILETIME의 HIGHPART/LOWPART는 원문을 보존하며, 해석 가능한 경우 UTC 문자열도
-  제공합니다. 해석할 수 없으면 utc만 null입니다. 파일시스템의 파일 수정 시각과 다릅니다.
-- Bootable은 WIM 헤더의 지정 여부입니다. 실제 부팅 성공을 검증하지 않습니다.
-- XML BUILD.SPBUILD는 레지스트리 CurrentBuildNumber.UBR와 항상 같다는 의미가 아닙니다.
-
-## 범위
-
-이 파서는 DISM `/Get-ImageInfo` 수준의 정보를 대상으로 합니다.
-25H2 같은 DisplayVersion, 업데이트·패키지·드라이버·기능·앱 인벤토리는
-이미지 내부 파일과 레지스트리를 추가로 분석해야 하므로 포함하지 않습니다.
-
-표준 MSWIM 시그니처, 208바이트 헤더, 버전 0x10D00/0xE00의 standalone WIM과
-같은 구조의 ESD 메타데이터를 지원합니다. 분할 SWM, pipable WIM, 다른 헤더 버전,
-압축/solid/spanned XML은 명시적으로 거부합니다.
-
-XML 최대 32MiB, 노드 최대 1,000,000개, 이미지 최대 100,000개로 제한합니다.
-잘못된 읽기 범위·UTF-16LE·XML·중복 필드·인덱스·개수 불일치 등을 검사합니다.
-XML 읽기에는 JS에서 Wasm 메모리로의 구간 복사가 있습니다.
-메모리 사용은 XML 크기에 비례하며 디코딩 문자열과 XML 트리도 생성합니다.
-이미지 파일 리소스 전체와 무결성 테이블은 검사하지 않습니다.
-
-## 소스 빌드
-
-Wasm을 다시 빌드할 때는 Rust stable 1.88 이상과 Cargo.lock에 기록된 버전의
-wasm-bindgen-cli가 필요합니다. Rust 설치 후 다음 준비를 한 번 실행하세요.
+저장소를 clone한 뒤 Wasm 산출물을 생성합니다.
 
 ```sh
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.129 --locked
+npm run build
+python3 -m http.server 8000
 ```
 
-이후 저장소 루트에서 빌드하고 결과물을 검증합니다.
+브라우저에서 <http://localhost:8000/web/>를 열고 WIM 파일을 선택합니다.
+데모는 선택한 파일을 서버로 업로드하지 않습니다.
 
-```sh
-pnpm --filter @zeroup/wim-info-wasm build
-pnpm --filter @zeroup/wim-info-wasm test:wasm
+`pkg/`는 빌드 산출물이므로 저장소에는 커밋하지 않습니다. npm 패키지를
+배포할 때 GitHub Actions가 `pkg/`를 생성하며, `package.json`의 `files` 설정을
+통해 배포 파일에 포함합니다.
+
+## 반환값
+
+최상위 결과는 다음 구조를 가집니다.
+
+```ts
+interface WimInfo {
+  imageCount: number;
+  totalBytes: string | null;
+  container: ContainerInfo;
+  images: ImageInfo[];
+}
 ```
 
-`build` 스크립트는 `PATH`에 `$CARGO_HOME/bin`(기본값: `~/.cargo/bin`)을
-추가하므로, WebStorm의 실행 환경에 Rust 경로가 없어도 설치된 도구를 찾습니다.
+### 이미지 정보
 
-`packages/zeroup__wim-info-wasm/pkg/`에 생성된 `.js`, `.wasm`, `.d.ts` 파일을
-모두 소스 변경과 함께 커밋합니다. `target/`은 중간 생성물이므로 Git에서 제외합니다.
-설치 시 빌드는 실행하지 않으며, 커밋된 결과물을 사용하는 개발자와 CI에는
-Rust 도구가 필요하지 않습니다.
+| 필드 | 설명 |
+|---|---|
+| `index` | `IMAGE/@INDEX` |
+| `osName` | `NAME` |
+| `displayName` | `DISPLAYNAME` |
+| `description` | `DESCRIPTION` |
+| `displayDescription` | `DISPLAYDESCRIPTION` |
+| `imageSize` | 이미지의 `TOTALBYTES` |
+| `hardLinkBytes` | `HARDLINKBYTES` |
+| `edition` | `WINDOWS/EDITIONID` |
+| `architecture` | `WINDOWS/ARCH` 원문 |
+| `productName` | `WINDOWS/PRODUCTNAME` |
+| `installationType` | `WINDOWS/INSTALLATIONTYPE` |
+| `hal` | `WINDOWS/HAL` |
+| `productType` | `WINDOWS/PRODUCTTYPE` |
+| `productSuite` | `WINDOWS/PRODUCTSUITE` |
+| `majorVersion`, `minorVersion` | Windows 버전 원문 |
+| `build`, `spBuild`, `spLevel` | 빌드 관련 원문 |
+| `version` | `MAJOR.MINOR.BUILD` 조합 |
+| `buildVersion` | `BUILD.SPBUILD` 조합 |
+| `bootable` | WIM 헤더의 `BootIndex`가 가리키는 이미지인지 여부 |
+| `wimBoot` | `WIMBOOT` 원문 |
+| `flags` | 이미지 `FLAGS` 원문 |
+| `systemRoot` | `WINDOWS/SYSTEMROOT` |
+| `languages` | 언어 목록, 기본 언어, fallback 정보 |
+| `fileCount`, `directoryCount` | 파일·디렉터리 수 원문 |
+| `createdTime`, `modifiedTime` | FILETIME 원문 및 해석 가능한 UTC 값 |
 
-파서 검증은 이 패키지 디렉터리에서 실행합니다.
+### 컨테이너 정보
+
+`container`에는 다음 정보가 포함됩니다.
+
+- `imageType`, `fileSize`, `headerSize`, `formatVersion`
+- `flags`, `compressionChunkSize`, `guid`
+- `partNumber`, `totalParts`, `bootIndex`
+- `lookupTable`, `xml`, `bootMetadata`, `integrity` 리소스 정보
+- `hasIntegrityTable`
+
+리소스 정보의 공통 필드는 `offset`, `size`, `originalSize`, `flags`입니다.
+표시되는 리소스 중 실제로 읽는 것은 헤더와 XML뿐입니다.
+
+## 값 처리 규칙
+
+- XML 값은 XML 규칙에 따라 디코딩하지만 공백, 대소문자, 선행 0은 보존합니다.
+- 없는 필드는 `null`, 존재하지만 비어 있는 필드는 빈 문자열입니다.
+- `NAME`과 `DISPLAYNAME`은 서로 대체하지 않습니다.
+- XML 숫자와 64비트 값은 문자열로 반환합니다.
+- 이미지 인덱스, 이미지 수, 헤더의 32비트 필드는 숫자입니다.
+- `version`과 `buildVersion`은 필요한 원문 필드가 유효한 경우에만 생성됩니다.
+- `bootable`은 헤더의 지정 정보만 의미하며 실제 부팅을 검증하지 않습니다.
+- `createdTime`과 `modifiedTime`은 이미지 파일의 파일시스템 수정 시각이 아닙니다.
+
+## 지원 범위와 제한
+
+- 표준 `MSWIM` 시그니처와 208바이트 WIM 헤더
+- WIM 포맷 버전 `0x10D00`, `0xE00`
+- 같은 메타데이터 구조를 사용하는 standalone ESD
+- XML 최대 32MiB
+- XML 노드 최대 1,000,000개
+- 이미지 최대 100,000개
+
+다음은 지원하지 않습니다.
+
+- 분할 SWM
+- pipable WIM
+- 압축·solid·spanned XML
+- 이미지 내부 파일, 레지스트리, 업데이트, 드라이버, 앱 인벤토리 분석
+- 무결성 테이블 검증
+
+## 개발
+
+필요한 도구는 Rust 1.88 이상, Node.js 22 이상, Python 3입니다.
 
 ```sh
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.129 --locked
+
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
-pnpm test:wasm
+
+npm run build
+npm run test:wasm
 ```
 
-## 검증
+브라우저 통합 테스트를 실행하려면 Playwright와 Chromium을 설치합니다.
 
-- Rust 테스트 11개 통과: 기본 값, 누락 필드, 상세 필드 전체, 언어, FILETIME,
-  정밀도 제한을 넘는 크기, 4GiB 이후 XML 위치, 잘못된 입력을 검증했습니다.
-- native/wasm32 대상 Clippy 경고 없이 통과.
-- 릴리스 Wasm 빌드 및 JS 바인딩 생성 완료.
-- 실제 Wasm과 Node File API를 이용한 `node tests/wasm.mjs` 통과:
-  상세 값의 직렬화와 헤더/XML 두 구간만 읽는 것을 확인했습니다.
-- Worker 및 화면 스크립트 JavaScript 구문 검사 통과.
-- 브라우저 통합 테스트는 tests/browser.cjs에 포함했습니다.
-- 실제 설치 WIM 파일은 제공되지 않아 합성 메타데이터로 검증했습니다.
+```sh
+npm install --no-save --no-package-lock playwright
+npx playwright install --with-deps chromium
+npm run test:browser
+```
+
+## GitHub Actions와 릴리즈
+
+### CI
+
+`.github/workflows/ci-build.yml`은 다음을 실행합니다.
+
+- PR 및 `main` push 검증
+- Rust 포맷, Clippy, 단위 테스트
+- 릴리스 Wasm 빌드
+- Node.js Wasm 테스트
+- 브라우저 통합 테스트
+- 검증된 `pkg/` artifact 생성
+
+### npm 배포
+
+`.github/workflows/publish.yml`은 `v*` Git 태그에서 실행됩니다. Git 태그와
+`package.json`의 버전은 정확히 같아야 합니다.
+
+| `package.json` 버전 | Git 태그 | npm dist-tag |
+|---|---|---|
+| `0.2.0-beta.1` | `v0.2.0-beta.1` | `beta` |
+| `0.2.0-rc.1` | `v0.2.0-rc.1` | `rc` |
+| `0.2.0` | `v0.2.0` | `latest` |
+
+예를 들어 beta 릴리즈는 다음처럼 만듭니다.
+
+```sh
+npm version 0.2.0-beta.1 --no-git-tag-version
+git add package.json
+git commit -m "chore: prepare v0.2.0-beta.1"
+git push
+
+git tag -a v0.2.0-beta.1 -m "Release v0.2.0-beta.1"
+git push origin v0.2.0-beta.1
+```
+
+릴리즈 workflow는 먼저 CI를 통과한 `pkg/`를 사용한 뒤 npm에 publish합니다.
+Trusted Publisher를 사용할 때 npm 설정의 workflow filename은 `publish.yml`이어야
+합니다. 현재 workflow는 `npm publish`를 직접 실행하므로 Trusted Publisher에서
+직접 publish 권한을 허용해야 합니다. stage-only 정책을 사용하려면 workflow의
+publish 명령을 `npm stage publish --tag "${{ steps.release.outputs.dist_tag }}"`로
+바꾸고 npm에서 staged package를 승인합니다.
 
 ## 참고
 
-- [DISM DismImageInfo](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/dism/dismimageinfo-structure)
-- [DISM DismWimCustomizedInfo](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/dism/dismwimcustomizedinfo-structure)
+- [Microsoft DISM DismImageInfo](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/dism/dismimageinfo-structure)
+- [Microsoft DISM DismWimCustomizedInfo](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/dism/dismwimcustomizedinfo-structure)
 - [Microsoft WIM reader](https://github.com/microsoft/go-winio/blob/main/wim/wim.go)
+
+## License
+
+MIT
