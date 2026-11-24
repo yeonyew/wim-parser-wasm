@@ -17,6 +17,11 @@
     },
     "./types": "./web/types.ts"
   },
+  "files": [
+    "pkg",
+    "web/types.ts",
+    "README.md"
+  ],
   "scripts": {
     "build": "node scripts/build.mjs",
     "test:wasm": "node tests/wasm.mjs",

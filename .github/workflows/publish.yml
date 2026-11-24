@@ -1,0 +1,48 @@
+name: Publish npm package
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci-build.yml
+    permissions:
+      contents: read
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download tested Wasm package
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg
+          path: pkg
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Check package version
+        shell: bash
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(node -p "require('./package.json').version")"
+
+          test "$tag_version" = "$package_version"
+
+      - run: npm pack --dry-run
+      - run: npm publish --provenance
