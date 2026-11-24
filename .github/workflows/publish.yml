@@ -1,0 +1,74 @@
+name: Publish npm package
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci-build.yml
+    permissions:
+      contents: read
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download tested Wasm package
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg
+          path: pkg
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Check version and determine npm dist-tag
+        id: release
+        shell: bash
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(node -p "require('./package.json').version")"
+
+          if [[ "$tag_version" != "$package_version" ]]; then
+            echo "Git tag version: $tag_version"
+            echo "package.json version: $package_version"
+            exit 1
+          fi
+
+          case "$package_version" in
+            *-beta.*)
+              dist_tag="beta"
+              ;;
+            *-rc.*)
+              dist_tag="rc"
+              ;;
+            *-*)
+              echo "Unsupported prerelease version: $package_version"
+              echo "Use a beta or rc prerelease, for example 0.2.0-beta.1 or 0.2.0-rc.1."
+              exit 1
+              ;;
+            *)
+              dist_tag="latest"
+              ;;
+          esac
+
+          echo "version=$package_version" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
+          echo "Publishing $package_version with npm dist-tag $dist_tag"
+
+      - run: npm pack --dry-run
+      - run: npm publish --tag "${{ steps.release.outputs.dist_tag }}" --provenance
